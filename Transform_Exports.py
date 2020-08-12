@@ -95,16 +95,25 @@ for filename in filenames:
             sleep_template.pop()
             time_template = time_template[:-1]   
         
+        # If the option at the the top is set to True, insert all the timestamps between the recordings and fill the stage column with None
         if export_empty_timestamps == True:
-            
+            # This is confusing because of the structure of the JSON exports. They start with the earliest timestamp for the most recent night
+            # then continue to the newest timestamp of that night. Then it switches to the oldest timestamp for the second most recent night.
+            # Here we define the last timestamp of this night as the start point of the timestamps we want to fill in.
             this_night_end = time_template[-1]
+            # This skips the first night. We only want to fill the gaps between nights.
+            # Also we don't know the end point yet. For that we need to know when the next night starts.
             if night_number != 0:
+                # Create timestamps starting from the end of this night to the beginning of the next night (the previous iteration)
+                # Remove the start and endpoint to avoid duplicating timepoints
                 empty_times = pd.date_range(this_night_end, next_night_start, freq='30S')[1:-1]
+                # Create an array with Nones and put together a Dataframe, which we insert into our list.
                 empty_sleeps = [None] * len(empty_times)
                 df_empty = pd.DataFrame()
                 df_empty['Time'] = empty_times
                 df_empty['Stage'] = empty_sleeps
                 df_list.insert(0, df_empty)
+            # Save when this night started. We use this as the endpoint in the next iteration
             next_night_start = time_template[0]
 
 
@@ -137,18 +146,21 @@ for filename in filenames:
     total_days = (pd.to_datetime(sleep_sample['sleep'][0]['dateOfSleep']) - pd.to_datetime(sleep_sample['sleep'][-1]['dateOfSleep'])).days
     missing_days = total_days - n_nights
 
-    
-    # Add the percentage of nights with missing stages for this patient to the total.
-    # This is used at the very end to report a sample average.
-    total_stages_missing.append(stages_missing/total_days * 100)
-    total_missing.append(missing_days/total_days * 100)
+    # Calculate the percentages of missing nights and missing stage data for this patient.
+    # Add it to the total, so we can report whole sample missing data
+    missing_days_per = round(missing_days/total_days * 100,1)
+    stages_missing_per = round(stages_missing/total_days * 100, 1)
+    available_per = 100 - missing_days_per - stages_missing_per
+    available = n_nights - stages_missing
+    total_stages_missing.append(missing_days_per)
+    total_missing.append(stages_missing_per)
     
     
     
     # Calculate how many nights haven't been recorded and for how many sleep stage data is unavailable
-    print(patientname + ': Data is missing completely for ' + str(round(missing_days/total_days * 100, 1)) + ' % of all nights (' + str(missing_days) + ')')
-    print(patientname + ': Sleep stage data is unavailable for ' + str(round(stages_missing/total_days * 100, 1)) + '% of all nights (' + str(stages_missing) + ')')
-    print(patientname + ': Sleep stage data is available for ' + str(round((n_nights - stages_missing)/total_days * 100, 1)) + '% of all nights (' + str(total_days - stages_missing - missing_days) + ')')
+    print(patientname + ': Data is missing completely for ' + str(missing_days_per) + ' % of all nights (' + str(missing_days) + ')')
+    print(patientname + ': Sleep stage data is unavailable for ' + str(stages_missing_per) + '% of all nights (' + str(stages_missing) + ')')
+    print(patientname + ': Sleep stage data is available for ' + str(available_per) + '% of all nights (' + str(available) + ')')
     
     
     
