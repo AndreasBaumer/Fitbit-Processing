@@ -13,6 +13,10 @@ from pathlib import Path
 from matplotlib import colors
 import matplotlib.patches as mpatches
 
+
+export_empty_timestamps = True
+
+
 # This whole thing is a preliminary version
 # Correct directory setting before running the code.
 # Set the directory to the same folder as the patient exports.
@@ -58,9 +62,11 @@ for filename in filenames:
     
     ######  TRANSFORMING DATA TO LONG FORMAT  ######
     
-    
+    # This is a counter for the night we're on
+    night_number = 0
     # This loop turns every recording into long form and adds everything into a single list.
     for i in range(n_nights):
+        
         # Establish the time references in 30 second intervals from beginning to end
         time_template = pd.date_range(sleep_sample['sleep'][i]['startTime'],sleep_sample['sleep'][i]['endTime'], freq='30S')
         # Create an array of the same length, that will be filled with the sleep stages later
@@ -89,11 +95,28 @@ for filename in filenames:
             sleep_template.pop()
             time_template = time_template[:-1]   
         
+        if export_empty_timestamps == True:
+            
+            this_night_end = time_template[-1]
+            if night_number != 0:
+                empty_times = pd.date_range(this_night_end, next_night_start, freq='30S')[1:-1]
+                empty_sleeps = [None] * len(empty_times)
+                df_empty = pd.DataFrame()
+                df_empty['Time'] = empty_times
+                df_empty['Stage'] = empty_sleeps
+                df_list.insert(0, df_empty)
+            next_night_start = time_template[0]
+
+
         # Create a pandas data frame by combining the time references with the long form sleep stages. Add everything into the big list.
         df = pd.DataFrame()
         df['Time'] = time_template
         df['Stage'] = sleep_template
         df_list.insert(0, df)
+        
+        
+        # Add to the night counter
+        night_number += 1
     
     # Turn the big list into a pandas data frame and reset the messed up indexes.
     df_complete = pd.concat(df_list)
@@ -296,10 +319,6 @@ for filename in filenames:
     full_df = full_df.set_index('Time')
     df_complete = df_complete.set_index('Time')
     
-    # This is outdated, can probably be deleted
-    for i in range(len(full_df)):
-        if full_df.index[i] in df_complete.index:
-            full_df['Stage'][i] = 1
 
     # Create Ticks and labels every 7 days starting on the first recorded night.
     all_days = pd.date_range(oldest, youngest, freq='D')
